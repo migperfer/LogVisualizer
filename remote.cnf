@@ -1,0 +1,8 @@
+[GENERAL]
+USER=demo
+PASSWORD=password
+IP=test.rebex.net
+
+[SCP]
+ARGS=BRACKETS,EXAMPLE
+REMOTELOCALIZATION=/var/logs/[EXAMPLE]a/string/within/[BRACKETS]/is/a/variable
