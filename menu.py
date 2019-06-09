@@ -9,7 +9,14 @@ from paramiko import AutoAddPolicy
 import tkinter as tk
 from settings import *
 
+
 def remoteconfargumentreader():
+    """
+    This function read the remote.cnf into a dictionary that holds all the possible variables for each section,
+    in the keys of the dictionary lies the different sections, the values are tuples containing the different
+    variables. It skips the general section.
+    :return: The dictionary with arguments tuples.
+    """
     argumentlist = {}
     cfgfile = cfgparser.ConfigParser()
     cfgfile.read('remote.cnf')
@@ -21,6 +28,11 @@ def remoteconfargumentreader():
 
 
 def remoteconfgeneralreader():
+    """
+    Reads all the general attributes inside the general section into a dictionary, where the keys are the
+    attribute names and the values are their respective values.
+    :return: The dictionary with attributes values
+    """
     attributelist = {}
     cfgfile = cfgparser.ConfigParser()
     cfgfile.read('remote.cnf')
@@ -30,25 +42,35 @@ def remoteconfgeneralreader():
 
 
 class RemoteDialog:
-
+    """
+    This class holds the dialog for getting the variables when asking for a remote log file.
+    """
     def __init__(self, parent):
+        """
+        The constructor for the Remote Dialog class
+        :param parent: The parent window that will have this remotedialog menu
+        """
         self.values = {}
         args = remoteconfargumentreader()
         top = self.top = tk.Toplevel(parent)
-        inputsection = self.inputsection = tk.Frame(top)
-        i = 4 # Auxiliary variable
-        for arg in args['SCP']:
+        inputsection = self.inputsection = tk.Frame(top)  # The section containing the input entries
+        i = 4  # Auxiliary variable
+        for arg in args['SCP']:  # For now is hardcoded to SCP
             tk.Label(inputsection, text=arg).grid(column=0, row=i, padx=8, pady=2)
             tk.Entry(inputsection).grid(column=1, row=i, padx=8, pady=2)
             i = i + 1
         inputsection.grid(row=0)
 
-        buttonpart = self.buttonpart = tk.Frame(top)
+        buttonpart = self.buttonpart = tk.Frame(top)  # The part contaning the buttons
         tk.Button(buttonpart, text="OK", width=10, command=self.returnvalues).grid(row=i, column=0, padx=8, pady=2)
         tk.Button(buttonpart, text="CANCEL", width=10, command=self.destroywindow).grid(row=i, column=1, padx=8, pady=2)
         buttonpart.grid(row=2)
 
     def returnvalues(self):
+        """
+        This function is called by the OK button on the menu and it just stores the given values in RemoteDialog
+        into a dictionary, save it to the values attribute and then destroy the remotedialog window.
+        """
         dicttoreturn = {}
         childrens = self.inputsection.winfo_children()
         for i in range(0, len(childrens), 2):
@@ -57,13 +79,24 @@ class RemoteDialog:
         self.destroywindow()
 
     def getvalues(self):
+        """
+        Returns the dictionary containing the given values in the dialog
+        :return: The dictionary containing the values
+        """
         return self.values
 
     def destroywindow(self):
+        """
+        Destroy the remotedialog window
+        """
         self.top.destroy()
 
 
 def findtextmatches():
+    """
+    This function gets the number of matches for each regex
+    :return: A dictionary containing the regex name and the number of matches for that regex
+    """
     global regexscolours
     global regexsfilter
     global regexs
@@ -93,6 +126,11 @@ def findtextmatches():
 
 
 def navigatematches(regex):
+    """
+    Navigate through the matches for a given regex name.
+    Throws an exectipon if can't find a match for that regex
+    :param regex: The name of the regex to find
+    """
     global scr
     global regexindex
     tag_mactches = {}
@@ -112,6 +150,10 @@ def navigatematches(regex):
 
 
 def loadlogintoscroll(logname):
+    """
+    Given a logfile name this will read it and display it in tho the scrolltext widget
+    :param logname: The name of the log
+    """
     global scr
     file = open(logname, 'r')
     filecontent = file.read()
@@ -123,6 +165,10 @@ def loadlogintoscroll(logname):
 
 
 def alternateregex(regexn):
+    """
+    Alternate the state for the filter for a given the number of the selected regex in the regexs dictionary
+    :param regexn: The regex position in the regexs dictionary
+    """
     global bottom_frame
     global regexsfilter
     global win
@@ -145,6 +191,9 @@ def alternateregex(regexn):
 
 
 def promptlocalfileloader():
+    """
+    Show a explorer for files to find the local log
+    """
     ftypes = [('Log files', '*.log'), ('All files', '*')]
     dlg = fldlg.Open(win, filetypes=ftypes)
     fl = dlg.show()
@@ -154,6 +203,12 @@ def promptlocalfileloader():
 
 
 def scpgetremotelocalization(dictval):
+    """
+    Given a dictionary with the parameters for scp loading, constructs the remote localization
+    and return the string with it.
+    :param dictval: The dictionary with the parameters
+    :return: The string with the localization within remote PC
+    """
     cfgfile = cfgparser.ConfigParser()
     cfgfile.read('remote.cnf')
     stringtosub = cfgfile['SCP']['REMOTELOCALIZATION']
@@ -163,6 +218,10 @@ def scpgetremotelocalization(dictval):
 
 
 def promptremotefileloader():
+    """
+    Prompt the remotedialog menu by calling the RemoteDialog class and retrieves the information to display the log
+    on the scrolltext
+    """
     remotewindow = RemoteDialog(win)
     win.wait_window(remotewindow.top)
     values = remotewindow.getvalues()
@@ -179,21 +238,27 @@ def promptremotefileloader():
 
 
 class MainMenu:
-
+    """
+    The main menu class
+    """
     def __init__(self, regexs):
+        """
+        The regexs to use in this session
+        :param regexs: A dictionary as described in settings.py
+        """
         global bottom_frame
         global scr
         global regexscolours
         global win
-
+        # Create the main window
         self.win = win = tk.Tk()
         self.win.geometry("1600x800+50+50")
         self.win.title("LogVisualizer")
-        # Draw the menubar
 
+        # Draw the menubar
         menu_bar = tk.Menu(win, tearoff=0)
         win.config(menu=menu_bar)
-
+        # Add a cascade for the file managing
         file_cascade = tk.Menu(menu_bar, tearoff=0)
         file_cascade.add_command(label="Open file", command=promptlocalfileloader)
         file_cascade.add_command(label="Open remote file", command=promptremotefileloader)
@@ -249,13 +314,13 @@ class MainMenu:
         # Draw the area where the log is going to be written
         scr = scrolledtext.ScrolledText(win, bg='BLACK', fg='WHITE')
         scr.pack(expand=tk.YES, fill=tk.BOTH)
-
+        # Create the colors for each filter
         for regex in regexs:
             ct = [random.randrange(256) for x in range(3)]
             brightness = int(round(0.299 * ct[0] + 0.587 * ct[1] + 0.114 * ct[2]))
             ct_hex = "%02x%02x%02x" % tuple(ct)
             bg_colour = '#' + "".join(ct_hex)
-            fg = 'White' if brightness < 120 else 'Black'
+            fg = 'White' if brightness < 120 else 'Black'  # If brightness is too high foreground will be black
             regexscolours[regex] = (bg_colour, fg)
             scr.tag_configure(regex, background=bg_colour, foreground=fg)
         bottom_frame = tk.Frame(win)
