@@ -1,5 +1,6 @@
 from tkinter import Menubutton
 from tkinter import scrolledtext
+from tkinter import messagebox
 import random
 from tkinter import filedialog as fldlg
 import configparser as cfgparser
@@ -7,25 +8,100 @@ from scp import SCPClient
 from paramiko import SSHClient
 from paramiko import AutoAddPolicy
 import tkinter as tk
+from tkinter import ttk
 from settings import *
+import os
 
-
-def remoteconfargumentreader():
+class RemoteDialog:
     """
-    This function read the remote.cnf into a dictionary that holds all the possible variables for each section,
-    in the keys of the dictionary lies the different sections, the values are tuples containing the different
-    variables. It skips the general section.
-    :return: The dictionary with arguments tuples.
+    This class holds the dialog for getting the variables when asking for a remote log file.
     """
-    argumentlist = {}
-    cfgfile = cfgparser.ConfigParser()
-    cfgfile.read('remote.cnf')
-    for section in cfgfile.sections():
-        if section == 'GENERAL':
-            continue
-        argumentlist[section] = cfgfile[section]["ARGS"].split(",")
-    return argumentlist
+    def __init__(self, parent):
+        """
+        The constructor for the Remote Dialog class
+        :param parent: The parent window that will have this remotedialog menu
+        """
+        self.values = {}
+        self.selectedsection = ""
+        sections = self.sections = self.remoteconfargumentreader()
+        top = self.top = tk.Toplevel(parent)
+        inputsection = self.inputsection = tk.Frame(top)  # The section containing the input entries
 
+        # Create the list to select type of log to retrieve and the subsequent menu
+        selectsection = tk.Frame(top)
+        listbox = self.listbox = ttk.Combobox(selectsection, state="readonly")
+        listbox['values'] = [section for section in sections]
+        tk.Label(selectsection, text="Select log:").grid(row=0, column=0, padx=8, pady=2)
+        listbox.grid(row=0, column=1, padx=8, pady=2)
+        selectsection.grid(row=0)
+        self.top.bind("<<ComboboxSelected>>", self.updatesectionselect)
+        inputsection.grid(row=1)
+        buttonpart = self.buttonpart = tk.Frame(top)  # The part contaning the buttons
+        buttonpart.grid(row=2)
+
+    def updatesectionselect(self, change):
+        [child.destroy() for child in self.inputsection.winfo_children()]
+        [child.destroy() for child in self.buttonpart.winfo_children()]
+        i = 4  # Auxiliary variable
+        for arg in self.sections[change.widget.get()]:
+            if arg == '':
+                tk.Label(self.inputsection, text="No input needed").pack()
+            else:
+                tk.Label(self.inputsection, text=arg).grid(column=0, row=i, padx=8, pady=2)
+                tk.Entry(self.inputsection).grid(column=1, row=i, padx=8, pady=2)
+                i = i + 1
+        tk.Button(self.buttonpart, text="OK", width=10, command=self.returnvalues).grid(row=i, column=0, padx=8, pady=2)
+        tk.Button(self.buttonpart, text="CANCEL", width=10, command=self.destroywindow).grid(row=i, column=1, padx=8,
+                                                                                             pady=2)
+
+    def returnvalues(self):
+        """
+        This function is called by the OK button on the menu and it just stores the given values in RemoteDialog
+        into a dictionary, save it to the values attribute and then destroy the remotedialog window.
+        """
+        dicttoreturn = {}
+        childrens = self.inputsection.winfo_children()
+        if len(childrens)>1:
+            for i in range(0, len(childrens), 2):
+                dicttoreturn[childrens[i].cget("text")] = childrens[i+1].get()
+        self.values = dicttoreturn
+        self.selectedsection = self.listbox.get()
+        self.destroywindow()
+
+    def getvalues(self):
+        """
+        Returns the dictionary containing the given values in the dialog
+        :return: The dictionary containing the values
+        """
+        return self.values, self.selectedsection
+
+    def destroywindow(self):
+        """
+        Destroy the remotedialog window
+        """
+        self.top.destroy()
+
+    def remoteconfargumentreader(self):
+        """
+        This function read the remote.cnf into a dictionary that holds all the possible variables for each section,
+        in the keys of the dictionary lies the different sections, the values are tuples containing the different
+        variables. It skips the general section.
+        :return: The dictionary with arguments tuples.
+        """
+        sections = {}
+        cfgfile = cfgparser.ConfigParser()
+        cfgfile.read('remote.cnf')
+        for section in cfgfile.sections():
+            if section == 'GENERAL':
+                continue
+            transitional = cfgfile[section]["args"].split(",")
+            if len(transitional) > 1:
+                try:
+                    transitional.remove('')
+                except ValueError:
+                    pass
+            sections[section] = transitional
+        return sections
 
 def remoteconfgeneralreader():
     """
@@ -39,57 +115,6 @@ def remoteconfgeneralreader():
     for attribute in cfgfile["GENERAL"].keys():
         attributelist[attribute] = cfgfile["GENERAL"][attribute]
     return attributelist
-
-
-class RemoteDialog:
-    """
-    This class holds the dialog for getting the variables when asking for a remote log file.
-    """
-    def __init__(self, parent):
-        """
-        The constructor for the Remote Dialog class
-        :param parent: The parent window that will have this remotedialog menu
-        """
-        self.values = {}
-        args = remoteconfargumentreader()
-        top = self.top = tk.Toplevel(parent)
-        inputsection = self.inputsection = tk.Frame(top)  # The section containing the input entries
-        i = 4  # Auxiliary variable
-        for arg in args['SCP']:  # For now is hardcoded to SCP
-            tk.Label(inputsection, text=arg).grid(column=0, row=i, padx=8, pady=2)
-            tk.Entry(inputsection).grid(column=1, row=i, padx=8, pady=2)
-            i = i + 1
-        inputsection.grid(row=0)
-
-        buttonpart = self.buttonpart = tk.Frame(top)  # The part contaning the buttons
-        tk.Button(buttonpart, text="OK", width=10, command=self.returnvalues).grid(row=i, column=0, padx=8, pady=2)
-        tk.Button(buttonpart, text="CANCEL", width=10, command=self.destroywindow).grid(row=i, column=1, padx=8, pady=2)
-        buttonpart.grid(row=2)
-
-    def returnvalues(self):
-        """
-        This function is called by the OK button on the menu and it just stores the given values in RemoteDialog
-        into a dictionary, save it to the values attribute and then destroy the remotedialog window.
-        """
-        dicttoreturn = {}
-        childrens = self.inputsection.winfo_children()
-        for i in range(0, len(childrens), 2):
-            dicttoreturn[childrens[i].cget("text")] = childrens[i+1].get()
-        self.values = dicttoreturn
-        self.destroywindow()
-
-    def getvalues(self):
-        """
-        Returns the dictionary containing the given values in the dialog
-        :return: The dictionary containing the values
-        """
-        return self.values
-
-    def destroywindow(self):
-        """
-        Destroy the remotedialog window
-        """
-        self.top.destroy()
 
 
 def findtextmatches():
@@ -202,7 +227,7 @@ def promptlocalfileloader():
         loadlogintoscroll(fl)
 
 
-def scpgetremotelocalization(dictval):
+def scpgetremotelocalization(section, dictval):
     """
     Given a dictionary with the parameters for scp loading, constructs the remote localization
     and return the string with it.
@@ -211,7 +236,7 @@ def scpgetremotelocalization(dictval):
     """
     cfgfile = cfgparser.ConfigParser()
     cfgfile.read('remote.cnf')
-    stringtosub = cfgfile['SCP']['REMOTELOCALIZATION']
+    stringtosub = cfgfile[section]['REMOTELOCALIZATION']
     for key in dictval:
         stringtosub = stringtosub.replace("[" + key + "]", dictval[key])
     return stringtosub
@@ -224,17 +249,25 @@ def promptremotefileloader():
     """
     remotewindow = RemoteDialog(win)
     win.wait_window(remotewindow.top)
-    values = remotewindow.getvalues()
-    option = 'SCP'
+    fromwindow = remotewindow.getvalues()  # This gets both, the selected section and the value of the arguments
+    values = fromwindow[0]
+    section = fromwindow[1]
+    cfgfile = cfgparser.ConfigParser()
+    cfgfile.read('remote.cnf')
+    sectiondict = cfgfile[section]
     general = remoteconfgeneralreader()
     ssh = SSHClient()
     ssh.set_missing_host_key_policy(AutoAddPolicy)
     ssh.connect(general['ip'], username=general['user'], password=general['password'])
-    if option == 'SCP':
-        scp = SCPClient(ssh.get_transport())
-        scpgetremotelocalization(values)
-        scp.get('readme.txt', 'remote.log')
-        loadlogintoscroll('remote.log')
+    if sectiondict['method'] == 'SCP':
+        try:
+            scp = SCPClient(ssh.get_transport())
+            remoteloc = scpgetremotelocalization(section, values)
+            scp.get(remoteloc, 'remote.log')
+            loadlogintoscroll('remote.log')
+            os.remove('remote.log')
+        except:
+            messagebox.showerror("Error", "Can't find the remote log")
 
 
 class MainMenu:
