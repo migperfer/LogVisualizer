@@ -12,6 +12,86 @@ from tkinter import ttk
 from settings import *
 import os
 
+
+def findtextmatches(scr, regexs, regexscolours):
+    """
+    This function gets the number of matches for each regex
+    :return: A dictionary containing the regex name and the number of matches for that regex
+    """
+    count = tk.IntVar()
+    numberofmatches = regexs.copy()
+
+    for regex in numberofmatches:
+        numberofmatches[regex] = 0
+    for tag in scr.tag_names():
+        scr.tag_delete(tag)
+        if tag != "sel" and tag != "selected_text":
+            scr.tag_configure(tag, background=regexscolours[tag][0], foreground=regexscolours[tag][1])
+
+    for regex in regexs:
+        start = 1.0
+        if not regexsfilter[regex]:
+            continue
+        while 1:
+            pos = scr.search(regexs[regex], start, stopindex=tk.END, count=count, regexp=regexs[regex])
+            if pos == '':
+                break
+            start = pos + "+%sc" % count.get()
+            scr.tag_add(regex, pos, pos + "+%sc" % count.get())
+            numberofmatches[regex] = len(scr.tag_ranges(regex)) / 2
+    return numberofmatches
+
+
+class TabSelector:
+    """
+    This class is used to have multiple logs in screen and display them
+    """
+    def __init__(self, parent):
+        self.parent = parent.tabframe
+        self.notebook = ttk.Notebook(self.parent)
+        self.notebook.pack(expand=tk.YES, fill=tk.BOTH)
+        self.regexs = regexs
+        self.notebook.bind("<<NotebookTabChanged>>", lambda interruptinfo: refreshmatches(parent))
+
+    def addtab(self, tabname):
+        scr = scrolledtext.ScrolledText(self.notebook, bg='BLACK', fg='WHITE', font=('consolas', '10'))
+        # Create the colors for each filter
+        self.notebook.add(scr, text=tabname)
+        for regex in regexscolours:
+            scr.tag_configure(regex, background=regexscolours[regex][0], foreground=regexscolours[regex][1])
+
+    def changeactualtabname(self, newname):
+        self.notebook.tab(self.notebook.index(self.notebook.select()), text=newname)
+
+    def loadlogintoscroll(self, logname):
+        """
+        Given a logfile name this will read it and display it in tho the scrolltext widget
+        :param logname: The name of the log
+        """
+        actual_tab_scr = self.actualtabobject()
+        self.notebook.tab(self.notebook.select(), text=logname)
+        file = open(logname, 'r')
+        filecontent = file.read()
+        actual_tab_scr.config(state=tk.NORMAL)
+        actual_tab_scr.delete("1.0", tk.END)
+        actual_tab_scr.insert("1.0", filecontent)
+        actual_tab_scr.config(state=tk.DISABLED)
+        findtextmatches(actual_tab_scr, self.regexs, regexscolours)
+
+    def erasetab(self):
+        actual_tab_scr = self.actualtabobject()
+        actual_tab_scr.master.destroy()
+
+    def actualtabobject(self):
+        """
+        This metod return the scrolled text associated with the actual tab selected, if there is no tab, returns None
+        :return:
+        """
+        try:
+            return self.notebook.children[self.notebook.select().split(".")[-1]].children['!scrolledtext']
+        except Exception:
+            return None
+
 class RemoteDialog:
     """
     This class holds the dialog for getting the variables when asking for a remote log file.
@@ -53,7 +133,6 @@ class RemoteDialog:
         tk.Button(self.buttonpart, text="OK", width=10, command=self.returnvalues).grid(row=i, column=0, padx=8, pady=2)
         tk.Button(self.buttonpart, text="CANCEL", width=10, command=self.destroywindow).grid(row=i, column=1, padx=8,
                                                                                              pady=2)
-
     def returnvalues(self):
         """
         This function is called by the OK button on the menu and it just stores the given values in RemoteDialog
@@ -61,7 +140,7 @@ class RemoteDialog:
         """
         dicttoreturn = {}
         childrens = self.inputsection.winfo_children()
-        if len(childrens)>1:
+        if len(childrens) > 1:
             for i in range(0, len(childrens), 2):
                 dicttoreturn[childrens[i].cget("text")] = childrens[i+1].get()
         self.values = dicttoreturn
@@ -103,6 +182,7 @@ class RemoteDialog:
             sections[section] = transitional
         return sections
 
+
 def remoteconfgeneralreader():
     """
     Reads all the general attributes inside the general section into a dictionary, where the keys are the
@@ -115,116 +195,6 @@ def remoteconfgeneralreader():
     for attribute in cfgfile["GENERAL"].keys():
         attributelist[attribute] = cfgfile["GENERAL"][attribute]
     return attributelist
-
-
-def findtextmatches():
-    """
-    This function gets the number of matches for each regex
-    :return: A dictionary containing the regex name and the number of matches for that regex
-    """
-    global regexscolours
-    global regexsfilter
-    global regexs
-    global scr
-    count = tk.IntVar()
-    numberofmatches = regexs.copy()
-
-    for regex in numberofmatches:
-        numberofmatches[regex] = 0
-    for tag in scr.tag_names():
-        scr.tag_delete(tag)
-        if tag != "sel":
-            scr.tag_configure(tag, background=regexscolours[tag][0], foreground=regexscolours[tag][1])
-
-    for regex in regexs:
-        start = 1.0
-        if not regexsfilter[regex]:
-            continue
-        while 1:
-            pos = scr.search(regexs[regex], start, stopindex=tk.END, count=count, regexp=regexs[regex])
-            if pos == '':
-                break
-            start = pos + "+%sc" % count.get()
-            scr.tag_add(regex, pos, pos + "+%sc" % count.get())
-            numberofmatches[regex] = len(scr.tag_ranges(regex))/2
-    return numberofmatches
-
-
-def navigatematches(regex):
-    """
-    Navigate through the matches for a given regex name.
-    Throws an exectipon if can't find a match for that regex
-    :param regex: The name of the regex to find
-    """
-    global scr
-    global regexindex
-    tag_mactches = {}
-    tags = scr.tag_names()
-    for tag in tags:
-        tag_mactches[tag] = scr.tag_ranges(tag)
-    index = regexindex[regex]
-    print("Actual index %s " % index)
-    try:
-        scr.see(tag_mactches[regex][index])
-        print(tag_mactches[regex][index])
-        regexindex[regex] = index + 2
-        if regexindex[regex] >= len(tag_mactches[regex]):
-            regexindex[regex] = 0
-    except:
-        print("Can't find a match for that regex %s" % regex)
-
-
-def loadlogintoscroll(logname):
-    """
-    Given a logfile name this will read it and display it in tho the scrolltext widget
-    :param logname: The name of the log
-    """
-    global scr
-    file = open(logname, 'r')
-    filecontent = file.read()
-    scr.delete("1.0", tk.END)
-    scr.config(state=tk.NORMAL)
-    scr.insert("1.0", filecontent)
-    scr.config(state=tk.DISABLED)
-    findtextmatches()
-
-
-def alternateregex(regexn):
-    """
-    Alternate the state for the filter for a given the number of the selected regex in the regexs dictionary
-    :param regexn: The regex position in the regexs dictionary
-    """
-    global bottom_frame
-    global regexsfilter
-    global win
-    regexkey = list(regexs.keys())[regexn]
-    regexsfilter[regexkey] = not regexsfilter[regexkey]
-    bottom_frame.destroy()
-    bottom_frame = tk.Frame(win)
-    bottom_frame.pack(side=tk.BOTTOM)
-    numberofmatches = findtextmatches()
-    for regex in regexsfilter:
-        if regexsfilter[regex]:
-            print()
-            button_category = tk.Button(bottom_frame,
-                                        text=regex
-                                        .replace("_", "/").replace("·", "/")+"(%s)" % numberofmatches[regex],
-                                        background=regexscolours[regex][0],
-                                        foreground=regexscolours[regex][1],
-                                        command=lambda regex=regex: navigatematches(regex))
-            button_category.pack(side=tk.LEFT)
-
-
-def promptlocalfileloader():
-    """
-    Show a explorer for files to find the local log
-    """
-    ftypes = [('Log files', '*.log'), ('All files', '*')]
-    dlg = fldlg.Open(win, filetypes=ftypes)
-    fl = dlg.show()
-
-    if fl != '':
-        loadlogintoscroll(fl)
 
 
 def scpgetremotelocalization(section, dictval):
@@ -242,34 +212,6 @@ def scpgetremotelocalization(section, dictval):
     return stringtosub
 
 
-def promptremotefileloader():
-    """
-    Prompt the remotedialog menu by calling the RemoteDialog class and retrieves the information to display the log
-    on the scrolltext
-    """
-    remotewindow = RemoteDialog(win)
-    win.wait_window(remotewindow.top)
-    fromwindow = remotewindow.getvalues()  # This gets both, the selected section and the value of the arguments
-    values = fromwindow[0]
-    section = fromwindow[1]
-    cfgfile = cfgparser.ConfigParser()
-    cfgfile.read('remote.cnf')
-    sectiondict = cfgfile[section]
-    general = remoteconfgeneralreader()
-    ssh = SSHClient()
-    ssh.set_missing_host_key_policy(AutoAddPolicy)
-    ssh.connect(general['ip'], username=general['user'], password=general['password'])
-    if sectiondict['method'] == 'SCP':
-        try:
-            scp = SCPClient(ssh.get_transport())
-            remoteloc = scpgetremotelocalization(section, values)
-            scp.get(remoteloc, 'remote.log')
-            loadlogintoscroll('remote.log')
-            os.remove('remote.log')
-        except:
-            messagebox.showerror("Error", "Can't find the remote log")
-
-
 class MainMenu:
     """
     The main menu class
@@ -279,32 +221,50 @@ class MainMenu:
         The regexs to use in this session
         :param regexs: A dictionary as described in settings.py
         """
-        global bottom_frame
-        global scr
         global regexscolours
         global win
+        # Create the colors for the regexs
+        regexscolours = {}
+        for regex in regexs:
+            ct = [random.randrange(256) for x in range(3)]
+            brightness = int(round(0.299 * ct[0] + 0.587 * ct[1] + 0.114 * ct[2]))
+            ct_hex = "%02x%02x%02x" % tuple(ct)
+            bg_colour = '#' + "".join(ct_hex)
+            fg = 'White' if brightness < 120 else 'Black'  # If brightness is too high foreground will be black
+            regexscolours[regex] = (bg_colour, fg)
         # Create the main window
         self.win = win = tk.Tk()
         self.win.geometry("1600x800+50+50")
         self.win.title("LogVisualizer")
-
+        self.tabframe = tk.Frame(win)
+        self.bottom_frame = tk.Frame(win)
+        self.tabsection = TabSelector(self)
         # Draw the menubar
         menu_bar = tk.Menu(win, tearoff=0)
         win.config(menu=menu_bar)
         # Add a cascade for the file managing
         file_cascade = tk.Menu(menu_bar, tearoff=0)
-        file_cascade.add_command(label="Open file", command=promptlocalfileloader)
-        file_cascade.add_command(label="Open remote file", command=promptremotefileloader)
+        file_cascade.add_command(label="Open file", command=self.promptlocalfileloader)
+        file_cascade.add_command(label="Open remote file", command=self.promptremotefileloader)
         file_cascade.add_separator()
         file_cascade.add_command(label="Quit", command=win.destroy)
 
         menu_bar.add_cascade(label="File", menu=file_cascade)
 
-        # Draw the filters control on the left side of the window
+        # Draw the filters and tab control on the left side of the window
+        self.leftframe = tk.Frame(win)
+        addbutton = tk.Button(self.leftframe, text="Add", padx=8, command=lambda: self.tabsection.addtab("Empty"))
+        erasebutton = tk.Button(self.leftframe, text="Del", padx=8, command=lambda: self.tabsection.erasetab())
+        self.leftframe.pack(side=tk.LEFT)
+        addbutton.grid(row=1, column=0)
+        erasebutton.grid(row=1, column=1)
         todraw = []
         cascades = []
         buttons = []
-        filter_menu = Menubutton(win, text="Filters")
+        self.filter_menu_frame = tk.Frame(self.leftframe, relief=tk.RAISED, bd=2)
+        self.filter_menu_frame.grid(row=2, columnspan=2, ipady=220, ipadx=21)
+
+        filter_menu = Menubutton(self.filter_menu_frame, text="Filters")
         topmenu = tk.Menu(filter_menu, tearoff=True)
         filter_menu.configure(menu=topmenu)
 
@@ -339,22 +299,111 @@ class MainMenu:
             splitted = filter.split("·")
             parent = splitted[0]
             filtername = splitted[1]
-            exec(parent + ".add_command(label = filtername, command = lambda : alternateregex(%s))" % i)
+            exec(parent + ".add_command(label = filtername, command = lambda self=self: alternateregex(self, %s))" % i)
             i = i + 1
 
-        filter_menu.pack(side=tk.LEFT)
+        filter_menu.pack(expand=tk.YES, fill=tk.BOTH)
+        self.tabframe.pack(expand=tk.YES, fill=tk.BOTH)
 
-        # Draw the area where the log is going to be written
-        scr = scrolledtext.ScrolledText(win, bg='BLACK', fg='WHITE')
-        scr.pack(expand=tk.YES, fill=tk.BOTH)
-        # Create the colors for each filter
-        for regex in regexs:
-            ct = [random.randrange(256) for x in range(3)]
-            brightness = int(round(0.299 * ct[0] + 0.587 * ct[1] + 0.114 * ct[2]))
-            ct_hex = "%02x%02x%02x" % tuple(ct)
-            bg_colour = '#' + "".join(ct_hex)
-            fg = 'White' if brightness < 120 else 'Black'  # If brightness is too high foreground will be black
-            regexscolours[regex] = (bg_colour, fg)
-            scr.tag_configure(regex, background=bg_colour, foreground=fg)
         bottom_frame = tk.Frame(win)
         bottom_frame.pack(side=tk.BOTTOM)
+        self.tabsection.addtab("Empty")
+
+    def navigatematches(self, regex):
+        """
+        Navigate through the matches for a given regex name.
+        Throws an exectipon if can't find a match for that regex
+        :param regex: The name of the regex to find
+        """
+        scr = self.tabsection.actualtabobject()
+        # Highlight colour is black foreground with white background
+        try:
+            scr.tag_delete('selected_text')
+        except:
+            pass
+        scr.tag_configure('selected_text', background='White', foreground='Black')
+        tag_mactches = {}
+        tags = scr.tag_names()
+        for tag in tags:
+            tag_mactches[tag] = scr.tag_ranges(tag)
+        index = regexindex[regex]
+        try:
+            scr.tag_add("selected_text", tag_mactches[regex][index], tag_mactches[regex][index+1])
+            scr.see(tag_mactches[regex][index])
+            regexindex[regex] = index + 2
+            if regexindex[regex] >= len(tag_mactches[regex]):
+                regexindex[regex] = 0
+        except Exception as e:
+            print("Can't find a match for that regex %s" % regex)
+            print(str(e))
+
+    def promptlocalfileloader(self):
+        """
+        Show a explorer for files to find the local log
+        """
+        ftypes = [('Log files', '*.log'), ('All files', '*')]
+        dlg = fldlg.Open(self.win, filetypes=ftypes)
+        fl = dlg.show()
+
+        if fl != '':
+            self.tabsection.loadlogintoscroll(fl)
+
+    def promptremotefileloader(self):
+        """
+        Prompt the remotedialog menu by calling the RemoteDialog class and retrieves the information to display the log
+        on the scrolltext
+        """
+        remotewindow = RemoteDialog(self.win)
+        self.win.wait_window(remotewindow.top)
+        fromwindow = remotewindow.getvalues()  # This gets both, the selected section and the value of the arguments
+        values = fromwindow[0]
+        section = fromwindow[1]
+        cfgfile = cfgparser.ConfigParser()
+        cfgfile.read('remote.cnf')
+        if section == '':
+            return
+        sectiondict = cfgfile[section]
+        general = remoteconfgeneralreader()
+        ssh = SSHClient()
+        ssh.set_missing_host_key_policy(AutoAddPolicy)
+        ssh.connect(general['ip'], username=general['user'], password=general['password'])
+        if sectiondict['method'] == 'SCP':
+            try:
+                scp = SCPClient(ssh.get_transport())
+                remoteloc = scpgetremotelocalization(section, values)
+                scp.get(remoteloc, 'remote.log')
+                self.tabsection.loadlogintoscroll('remote.log')
+                os.remove('remote.log')
+            except Exception as e:
+                print(str(e))
+                messagebox.showerror("Error", "Can't find the remote log")
+
+
+def alternateregex(mainmenu, regexn):
+    """
+    Alternate the state for the filter for a given the number of the selected regex in the regexs dictionary
+    :param regexn: The regex position in the regexs dictionary
+    """
+    regexkey = list(regexs.keys())[regexn]
+    regexsfilter[regexkey] = not regexsfilter[regexkey]
+    refreshmatches(mainmenu)
+
+
+def refreshmatches(mainmenu):
+    mainmenu.bottom_frame.destroy()
+    mainmenu.bottom_frame = tk.Frame(win)
+    mainmenu.bottom_frame.pack(side=tk.BOTTOM)
+    actual_tab = mainmenu.tabsection.actualtabobject()
+    if actual_tab is None:
+        return
+    numberofmatches = findtextmatches(actual_tab, regexs, regexscolours)
+    for regex in regexsfilter:
+        if regexsfilter[regex]:
+            print()
+            button_category = tk.Button(mainmenu.bottom_frame,
+                                        text=regex
+                                        .replace("_", "/").replace("·", "/")+"(%s)" % numberofmatches[regex],
+                                        background=regexscolours[regex][0],
+                                        foreground=regexscolours[regex][1],
+                                        command=lambda regex=regex: mainmenu.navigatematches(regex))
+            button_category.pack(side=tk.LEFT)
