@@ -12,3 +12,9 @@ REMOTELOCALIZATION=readme.txt
 METHOD=SCP
 ARGS=BRACKETS,EXAMPLE
 REMOTELOCALIZATION=/var/logs/[EXAMPLE]a/string/within/[BRACKETS]/is/a/variable
+
+[ANOTHERLOG]
+METHOD=SSH
+ARGS=
+IP=test.rebex.net
+COMMANDS=cat | grep kernel

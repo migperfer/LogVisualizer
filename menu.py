@@ -169,7 +169,7 @@ class RemoteDialog:
         """
         sections = {}
         cfgfile = cfgparser.ConfigParser()
-        cfgfile.read('remote.cnf')
+        cfgfile.read(cnfdir + '\\remote.cnf')
         for section in cfgfile.sections():
             if section == 'GENERAL':
                 continue
@@ -191,7 +191,7 @@ def remoteconfgeneralreader():
     """
     attributelist = {}
     cfgfile = cfgparser.ConfigParser()
-    cfgfile.read('remote.cnf')
+    cfgfile.read(cnfdir + '\\remote.cnf')
     for attribute in cfgfile["GENERAL"].keys():
         attributelist[attribute] = cfgfile["GENERAL"][attribute]
     return attributelist
@@ -205,8 +205,23 @@ def scpgetremotelocalization(section, dictval):
     :return: The string with the localization within remote PC
     """
     cfgfile = cfgparser.ConfigParser()
-    cfgfile.read('remote.cnf')
+    cfgfile.read(cnfdir + '\\remote.cnf')
     stringtosub = cfgfile[section]['REMOTELOCALIZATION']
+    for key in dictval:
+        stringtosub = stringtosub.replace("[" + key + "]", dictval[key])
+    return stringtosub
+
+
+def scpremotecommandexec(section, dictval):
+    """
+    Given a dictionary with the parameters for scp loading, constructs the remote localization
+    and return the string with it.
+    :param dictval: The dictionary with the parameters
+    :return: The string with the localization within remote PC
+    """
+    cfgfile = cfgparser.ConfigParser()
+    cfgfile.read(cnfdir + '\\remote.cnf')
+    stringtosub = cfgfile[section]['COMMANDS']
     for key in dictval:
         stringtosub = stringtosub.replace("[" + key + "]", dictval[key])
     return stringtosub
@@ -359,24 +374,45 @@ class MainMenu:
         values = fromwindow[0]
         section = fromwindow[1]
         cfgfile = cfgparser.ConfigParser()
-        cfgfile.read('remote.cnf')
+        cfgfile.read(cnfdir + '\\remote.cnf')
         if section == '':
             return
         sectiondict = cfgfile[section]
         general = remoteconfgeneralreader()
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy)
-        ssh.connect(general['ip'], username=general['user'], password=general['password'])
-        if sectiondict['method'] == 'SCP':
-            try:
-                scp = SCPClient(ssh.get_transport())
-                remoteloc = scpgetremotelocalization(section, values)
-                scp.get(remoteloc, 'remote.log')
-                self.tabsection.loadlogintoscroll('remote.log')
-                os.remove('remote.log')
-            except Exception as e:
-                print(str(e))
-                messagebox.showerror("Error", "Can't find the remote log")
+        try:
+            ip = sectiondict['ip']
+        except Exception:
+            ip = general['ip']
+        try:
+            ssh = SSHClient()
+            ssh.set_missing_host_key_policy(AutoAddPolicy)
+            ssh.connect(ip, username=general['user'], password=general['password'])
+        except Exception as e:
+            print("Exception: ", str(e))
+            messagebox.showerror("Error", "Can't connect to remote")
+        else:
+            if sectiondict['method'] == 'SCP':
+                try:
+                    scp = SCPClient(ssh.get_transport())
+                    remoteloc = scpgetremotelocalization(section, values)
+                    scp.get(remoteloc, 'remote.log')
+                    self.tabsection.loadlogintoscroll('remote.log')
+                    os.remove('remote.log')
+                except Exception as e:
+                    print("Caught exception: ", str(e))
+                    messagebox.showerror("Error", "Can't find the remote log")
+            if sectiondict['method'] == 'SSH':
+                try:
+                    remotecommand = scpremotecommandexec(section, values)
+                    result = ssh.exec_command(remotecommand)
+                    with open('remote.log', 'w') as file:
+                        file.write(result[1].read().decode('utf-8'))
+                    self.tabsection.loadlogintoscroll('remote.log')
+                    os.remove('remote.log')
+                except Exception as e:
+                    print("Caught exception: ", str(e))
+                    messagebox.showerror("Error", "Can't execute the commands")
+
 
 
 def alternateregex(mainmenu, regexn):

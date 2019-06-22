@@ -1,4 +1,5 @@
 import logjsonreader
+import os
 """
 This is just a file to hold the common variables between diferent files, like menu.py and logVisualizer.py
 All of them just import with a * this module so they can share the variables between them, those variables are:
@@ -19,7 +20,8 @@ regexindex : Holds a dictionary in which keys are the same that on regexs, a num
 regex that was shown on screen with the search method.
 """
 win = []
-regexs = logjsonreader.readjson("logparser.json")
+cnfdir = os.path.dirname(os.path.abspath(__file__))
+regexs = logjsonreader.readjson(cnfdir + "\\logparser.json")
 regexscolours = {}
 regexsfilter = regexs.copy()
 regexindex = regexs.copy()
