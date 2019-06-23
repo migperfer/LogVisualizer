@@ -169,7 +169,7 @@ class RemoteDialog:
         """
         sections = {}
         cfgfile = cfgparser.ConfigParser()
-        cfgfile.read(cnfdir + '\\remote.cnf')
+        cfgfile.read(cnfdir + '/remote.cnf')
         for section in cfgfile.sections():
             if section == 'GENERAL':
                 continue
@@ -191,7 +191,7 @@ def remoteconfgeneralreader():
     """
     attributelist = {}
     cfgfile = cfgparser.ConfigParser()
-    cfgfile.read(cnfdir + '\\remote.cnf')
+    cfgfile.read(cnfdir + '/remote.cnf')
     for attribute in cfgfile["GENERAL"].keys():
         attributelist[attribute] = cfgfile["GENERAL"][attribute]
     return attributelist
@@ -205,7 +205,7 @@ def scpgetremotelocalization(section, dictval):
     :return: The string with the localization within remote PC
     """
     cfgfile = cfgparser.ConfigParser()
-    cfgfile.read(cnfdir + '\\remote.cnf')
+    cfgfile.read(cnfdir + '/remote.cnf')
     stringtosub = cfgfile[section]['REMOTELOCALIZATION']
     for key in dictval:
         stringtosub = stringtosub.replace("[" + key + "]", dictval[key])
@@ -220,7 +220,7 @@ def scpremotecommandexec(section, dictval):
     :return: The string with the localization within remote PC
     """
     cfgfile = cfgparser.ConfigParser()
-    cfgfile.read(cnfdir + '\\remote.cnf')
+    cfgfile.read(cnfdir + '/remote.cnf')
     stringtosub = cfgfile[section]['COMMANDS']
     for key in dictval:
         stringtosub = stringtosub.replace("[" + key + "]", dictval[key])
@@ -374,7 +374,7 @@ class MainMenu:
         values = fromwindow[0]
         section = fromwindow[1]
         cfgfile = cfgparser.ConfigParser()
-        cfgfile.read(cnfdir + '\\remote.cnf')
+        cfgfile.read(cnfdir + '/remote.cnf')
         if section == '':
             return
         sectiondict = cfgfile[section]
@@ -412,7 +412,6 @@ class MainMenu:
                 except Exception as e:
                     print("Caught exception: ", str(e))
                     messagebox.showerror("Error", "Can't execute the commands")
-
 
 
 def alternateregex(mainmenu, regexn):

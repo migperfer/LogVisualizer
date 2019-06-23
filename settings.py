@@ -21,7 +21,7 @@ regex that was shown on screen with the search method.
 """
 win = []
 cnfdir = os.path.dirname(os.path.abspath(__file__))
-regexs = logjsonreader.readjson(cnfdir + "\\logparser.json")
+regexs = logjsonreader.readjson(cnfdir + "/logparser.json")
 regexscolours = {}
 regexsfilter = regexs.copy()
 regexindex = regexs.copy()
